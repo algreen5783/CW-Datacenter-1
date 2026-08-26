@@ -72,7 +72,7 @@ jobs:
           cd ios
           xcodebuild build \
             -project CWDatacenter.xcodeproj \
-            -target CWDatacenter \
+            -scheme CWDatacenter \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath "$PWD/build" \
