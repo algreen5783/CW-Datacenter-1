@@ -1,0 +1,124 @@
+name: Build CW Datacenter iOS IPA
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "CW-Datacenter-iOS-1.6.0-GitHub-IPA-Build.zip"
+      - ".github/workflows/build-ios.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cw-datacenter-ios-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ios:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      SOURCE_ZIP: CW-Datacenter-iOS-1.6.0-GitHub-IPA-Build.zip
+      IPA_NAME: CW-Datacenter-iOS-1.4.0.ipa
+
+    steps:
+      - name: Checkout source package
+        uses: actions/checkout@v4
+
+      - name: Extract and validate iOS 1.6.0 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$SOURCE_ZIP"
+
+          python3 - <<'PY'
+          import pathlib
+          import zipfile
+
+          archive = pathlib.Path("CW-Datacenter-iOS-1.6.0-GitHub-IPA-Build.zip")
+          root = pathlib.Path.cwd().resolve()
+          with zipfile.ZipFile(archive, "r") as source:
+              for member in source.infolist():
+                  name = member.filename.replace("\\", "/")
+                  if not name:
+                      continue
+                  target = (root / name).resolve()
+                  if target != root and root not in target.parents:
+                      raise RuntimeError(f"Unsafe ZIP entry: {name}")
+                  source.extract(member, root)
+          PY
+
+          test -f ios/CWDatacenter/Info.plist
+          test -f ios/CWDatacenter/Resources/Web/index.html
+          test -f ios/CWDatacenter/Resources/Web/app.js
+          test -f ios/CWDatacenter.xcodeproj/project.pbxproj
+
+          SOURCE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' ios/CWDatacenter/Info.plist)"
+          SOURCE_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' ios/CWDatacenter/Info.plist)"
+          test "$SOURCE_VERSION" = "1.6.0"
+          test "$SOURCE_BUILD" = "10600"
+          grep -q "CW_WEB_VERSION = '1.6.0'" ios/CWDatacenter/Resources/Web/app.js
+
+      - name: Select Xcode
+        shell: bash
+        run: sudo xcode-select -switch /Applications/Xcode.app
+
+      - name: Compile iOS app
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ios
+          xcodebuild build \
+            -project CWDatacenter.xcodeproj \
+            -target CWDatacenter \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath "$PWD/build" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            | tee xcodebuild.log
+
+      - name: Validate app bundle and package IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ios
+          APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name 'CWDatacenter.app' -print -quit)"
+          test -n "$APP_PATH"
+          test -f "$APP_PATH/Info.plist"
+          test -f "$APP_PATH/Web/app.js"
+
+          APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")"
+          APP_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")"
+          test "$APP_VERSION" = "1.6.0"
+          test "$APP_BUILD" = "10600"
+          grep -q "CW_WEB_VERSION = '1.6.0'" "$APP_PATH/Web/app.js"
+
+          rm -rf Payload
+          mkdir -p Payload
+          ditto "$APP_PATH" Payload/CWDatacenter.app
+          /usr/bin/zip -qry "$IPA_NAME" Payload
+          shasum -a 256 "$IPA_NAME" > "$IPA_NAME.sha256"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CW-Datacenter-iOS-1.4.0
+          path: |
+            ios/CW-Datacenter-iOS-1.4.0.ipa
+            ios/CW-Datacenter-iOS-1.4.0.ipa.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Xcode log when build fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CW-Datacenter-iOS-1.6.0-build-log
+          path: ios/xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 14
