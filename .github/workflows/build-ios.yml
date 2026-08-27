@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, master]
     paths:
-      - "CW-Datacenter-iOS-1.6.5-GitHub-IPA-Build.zip"
+      - "CW-Datacenter-iOS-1.6.9-GitHub-IPA-Build.zip"
       - ".github/workflows/build-ios.yml"
   workflow_dispatch:
 
@@ -20,14 +20,14 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 45
     env:
-      SOURCE_ZIP: CW-Datacenter-iOS-1.6.5-GitHub-IPA-Build.zip
+      SOURCE_ZIP: CW-Datacenter-iOS-1.6.9-GitHub-IPA-Build.zip
       IPA_NAME: CW-Datacenter-iOS-1.4.0.ipa
 
     steps:
       - name: Checkout source package
         uses: actions/checkout@v4
 
-      - name: Extract and validate iOS 1.6.5 source
+      - name: Extract and validate iOS 1.6.9 source
         shell: bash
         run: |
           set -euo pipefail
@@ -37,7 +37,7 @@ jobs:
           import pathlib
           import zipfile
 
-          archive = pathlib.Path("CW-Datacenter-iOS-1.6.5-GitHub-IPA-Build.zip")
+          archive = pathlib.Path("CW-Datacenter-iOS-1.6.9-GitHub-IPA-Build.zip")
           root = pathlib.Path.cwd().resolve()
           with zipfile.ZipFile(archive, "r") as source:
               for member in source.infolist():
@@ -57,9 +57,9 @@ jobs:
 
           SOURCE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' ios/CWDatacenter/Info.plist)"
           SOURCE_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' ios/CWDatacenter/Info.plist)"
-          test "$SOURCE_VERSION" = "1.6.5"
-          test "$SOURCE_BUILD" = "10605"
-          grep -q "CW_WEB_VERSION = '1.6.5'" ios/CWDatacenter/Resources/Web/app.js
+          test "$SOURCE_VERSION" = "1.6.9"
+          test "$SOURCE_BUILD" = "10609"
+          grep -q "CW_WEB_VERSION = '1.6.9'" ios/CWDatacenter/Resources/Web/app.js
 
       - name: Select Xcode
         shell: bash
@@ -94,9 +94,9 @@ jobs:
 
           APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")"
           APP_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")"
-          test "$APP_VERSION" = "1.6.5"
-          test "$APP_BUILD" = "10605"
-          grep -q "CW_WEB_VERSION = '1.6.5'" "$APP_PATH/Web/app.js"
+          test "$APP_VERSION" = "1.6.9"
+          test "$APP_BUILD" = "10609"
+          grep -q "CW_WEB_VERSION = '1.6.9'" "$APP_PATH/Web/app.js"
 
           rm -rf Payload
           mkdir -p Payload
@@ -118,7 +118,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: CW-Datacenter-iOS-1.6.5-build-log
+          name: CW-Datacenter-iOS-1.6.9-build-log
           path: ios/xcodebuild.log
           if-no-files-found: ignore
           retention-days: 14
