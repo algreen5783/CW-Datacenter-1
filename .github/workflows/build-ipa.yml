@@ -1,4 +1,4 @@
-name: Build CW Datacenter iOS 1.6.12 IPA
+name: Build CW Datacenter iOS 1.6.14 IPA
 
 on:
   workflow_dispatch:
@@ -25,7 +25,7 @@ jobs:
           set -euo pipefail
 
           SOURCE_ROOT="$GITHUB_WORKSPACE"
-          PREFERRED_ZIP="$GITHUB_WORKSPACE/CW-Datacenter-iOS-1.6.12-GitHub-IPA-Build.zip"
+          PREFERRED_ZIP="$GITHUB_WORKSPACE/CW-Datacenter-iOS-1.6.14-GitHub-IPA-Build.zip"
           if [[ -f "$PREFERRED_ZIP" ]]; then
             ZIP_PATH="$PREFERRED_ZIP"
           else
@@ -74,8 +74,8 @@ jobs:
 
           SOURCE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' CWDatacenter/Info.plist)"
           SOURCE_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' CWDatacenter/Info.plist)"
-          if [[ "$SOURCE_VERSION" != "1.6.12" || "$SOURCE_BUILD" != "10612" ]]; then
-            echo "::error::Sai phiên bản source: nhận $SOURCE_VERSION ($SOURCE_BUILD), cần 1.6.12 (10612)."
+          if [[ "$SOURCE_VERSION" != "1.6.14" || "$SOURCE_BUILD" != "10614" ]]; then
+            echo "::error::Sai phiên bản source: nhận $SOURCE_VERSION ($SOURCE_BUILD), cần 1.6.14 (10614)."
             exit 1
           fi
           grep -q "cw-web-version\" content=\"$SOURCE_VERSION" CWDatacenter/Resources/Web/index.html
@@ -109,8 +109,8 @@ jobs:
           test -f "$APP_PATH/Web/app.js"
           APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")"
           APP_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")"
-          test "$APP_VERSION" = "1.6.12"
-          test "$APP_BUILD" = "10612"
+          test "$APP_VERSION" = "1.6.14"
+          test "$APP_BUILD" = "10614"
           test -d "$APP_PATH/PlugIns/CWDatacenterShare.appex"
           grep -q "cw-web-version\" content=\"$APP_VERSION" "$APP_PATH/Web/index.html"
           grep -q "CW_WEB_VERSION = '$APP_VERSION'" "$APP_PATH/Web/app.js"
