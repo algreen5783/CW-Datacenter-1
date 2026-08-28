@@ -1,76 +1,43 @@
-name: Build CW Datacenter iOS IPA
+name: Build CW Datacenter iOS 1.6.12 IPA
 
 on:
+  workflow_dispatch:
   push:
     branches: [main, master]
     paths:
-      - "CW-Datacenter-iOS-1.6.10-GitHub-IPA-Build.zip"
-      - ".github/workflows/build-ios.yml"
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-concurrency:
-  group: cw-datacenter-ios-ipa-${{ github.ref }}
-  cancel-in-progress: true
+      - "CWDatacenter/**"
+      - "CWDatacenterShare/**"
+      - "CWDatacenter.xcodeproj/**"
+      - ".github/workflows/build-ipa.yml"
 
 jobs:
-  build-ios:
+  build-unsigned-ipa:
     runs-on: macos-15
     timeout-minutes: 45
-    env:
-      SOURCE_ZIP: CW-Datacenter-iOS-1.6.10-GitHub-IPA-Build.zip
-      IPA_NAME: CW-Datacenter-iOS-1.4.0.ipa
-
     steps:
-      - name: Checkout source package
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Extract and validate iOS 1.6.10 source
+      - name: Validate source version and web bundle
         shell: bash
         run: |
           set -euo pipefail
-          test -f "$SOURCE_ZIP"
+          test -f CWDatacenter/Resources/Web/index.html
+          test -f CWDatacenter/Resources/Web/app.js
+          test -f CWDatacenter/App/AppLogger.swift
+          test -f CWDatacenterShare/ShareViewController.swift
+          SOURCE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' CWDatacenter/Info.plist)"
+          SOURCE_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' CWDatacenter/Info.plist)"
+          test "$SOURCE_VERSION" = "1.6.12"
+          test "$SOURCE_BUILD" = "10612"
+          grep -q "cw-web-version\" content=\"$SOURCE_VERSION" CWDatacenter/Resources/Web/index.html
+          grep -q "CW_WEB_VERSION = '$SOURCE_VERSION'" CWDatacenter/Resources/Web/app.js
 
-          python3 - <<'PY'
-          import pathlib
-          import zipfile
-
-          archive = pathlib.Path("CW-Datacenter-iOS-1.6.10-GitHub-IPA-Build.zip")
-          root = pathlib.Path.cwd().resolve()
-          with zipfile.ZipFile(archive, "r") as source:
-              for member in source.infolist():
-                  name = member.filename.replace("\\", "/")
-                  if not name:
-                      continue
-                  target = (root / name).resolve()
-                  if target != root and root not in target.parents:
-                      raise RuntimeError(f"Unsafe ZIP entry: {name}")
-                  source.extract(member, root)
-          PY
-
-          test -f ios/CWDatacenter/Info.plist
-          test -f ios/CWDatacenter/Resources/Web/index.html
-          test -f ios/CWDatacenter/Resources/Web/app.js
-          test -f ios/CWDatacenter.xcodeproj/project.pbxproj
-
-          SOURCE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' ios/CWDatacenter/Info.plist)"
-          SOURCE_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' ios/CWDatacenter/Info.plist)"
-          test "$SOURCE_VERSION" = "1.6.10"
-          test "$SOURCE_BUILD" = "10610"
-          grep -q "CW_WEB_VERSION = '1.6.10'" ios/CWDatacenter/Resources/Web/app.js
-
-      - name: Select Xcode
-        shell: bash
-        run: sudo xcode-select -switch /Applications/Xcode.app
-
-      - name: Compile iOS app
+      - name: Build app without code signing
         shell: bash
         run: |
           set -euo pipefail
-          cd ios
-          xcodebuild build \
+          xcodebuild \
             -project CWDatacenter.xcodeproj \
             -scheme CWDatacenter \
             -configuration Release \
@@ -79,46 +46,38 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            | tee xcodebuild.log
+            clean build
 
-      - name: Validate app bundle and package IPA
+      - name: Validate and package unsigned IPA
         shell: bash
         run: |
           set -euo pipefail
-          cd ios
           APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name 'CWDatacenter.app' -print -quit)"
           test -n "$APP_PATH"
-          test -f "$APP_PATH/Info.plist"
+          test -f "$APP_PATH/Web/index.html"
           test -f "$APP_PATH/Web/app.js"
-
           APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")"
           APP_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")"
-          test "$APP_VERSION" = "1.6.10"
-          test "$APP_BUILD" = "10610"
-          grep -q "CW_WEB_VERSION = '1.6.10'" "$APP_PATH/Web/app.js"
-
-          rm -rf Payload
-          mkdir -p Payload
-          ditto "$APP_PATH" Payload/CWDatacenter.app
-          /usr/bin/zip -qry "$IPA_NAME" Payload
-          shasum -a 256 "$IPA_NAME" > "$IPA_NAME.sha256"
+          test "$APP_VERSION" = "1.6.12"
+          test "$APP_BUILD" = "10612"
+          test -d "$APP_PATH/PlugIns/CWDatacenterShare.appex"
+          grep -q "cw-web-version\" content=\"$APP_VERSION" "$APP_PATH/Web/index.html"
+          grep -q "CW_WEB_VERSION = '$APP_VERSION'" "$APP_PATH/Web/app.js"
+          # Keep the legacy output name because the existing GitHub pipeline
+          # and download step expect this exact filename.
+          IPA_BASENAME="CW-Datacenter-iOS-1.4.0-unsigned"
+          rm -rf package
+          mkdir -p package/Payload
+          ditto "$APP_PATH" package/Payload/CWDatacenter.app
+          (cd package && /usr/bin/zip -qry "../${IPA_BASENAME}.ipa" Payload)
+          shasum -a 256 "${IPA_BASENAME}.ipa" > "${IPA_BASENAME}.ipa.sha256"
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CW-Datacenter-iOS-1.4.0
+          name: CW-Datacenter-iOS-1.4.0-unsigned
           path: |
-            ios/CW-Datacenter-iOS-1.4.0.ipa
-            ios/CW-Datacenter-iOS-1.4.0.ipa.sha256
+            CW-Datacenter-iOS-1.4.0-unsigned.ipa
+            CW-Datacenter-iOS-1.4.0-unsigned.ipa.sha256
           if-no-files-found: error
           retention-days: 30
-
-      - name: Upload Xcode log when build fails
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: CW-Datacenter-iOS-1.6.10-build-log
-          path: ios/xcodebuild.log
-          if-no-files-found: ignore
-          retention-days: 14
