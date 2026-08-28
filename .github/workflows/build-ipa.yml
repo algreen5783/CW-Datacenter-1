@@ -1,4 +1,4 @@
-name: Build CW Datacenter iOS 1.6.16 IPA
+name: Build CW Datacenter iOS 1.6.17 IPA
 
 on:
   workflow_dispatch:
@@ -25,7 +25,7 @@ jobs:
           set -euo pipefail
 
           SOURCE_ROOT="$GITHUB_WORKSPACE"
-          PREFERRED_ZIP="$GITHUB_WORKSPACE/CW-Datacenter-iOS-1.6.16-GitHub-IPA-Build.zip"
+          PREFERRED_ZIP="$GITHUB_WORKSPACE/CW-Datacenter-iOS-1.6.17-GitHub-IPA-Build.zip"
           if [[ -f "$PREFERRED_ZIP" ]]; then
             ZIP_PATH="$PREFERRED_ZIP"
           else
@@ -74,8 +74,8 @@ jobs:
 
           SOURCE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' CWDatacenter/Info.plist)"
           SOURCE_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' CWDatacenter/Info.plist)"
-          if [[ "$SOURCE_VERSION" != "1.6.16" || "$SOURCE_BUILD" != "10616" ]]; then
-            echo "::error::Sai phiên bản source: nhận $SOURCE_VERSION ($SOURCE_BUILD), cần 1.6.16 (10616)."
+          if [[ "$SOURCE_VERSION" != "1.6.17" || "$SOURCE_BUILD" != "10617" ]]; then
+            echo "::error::Sai phiên bản source: nhận $SOURCE_VERSION ($SOURCE_BUILD), cần 1.6.17 (10617)."
             exit 1
           fi
           grep -q "cw-web-version\" content=\"$SOURCE_VERSION" CWDatacenter/Resources/Web/index.html
@@ -87,16 +87,53 @@ jobs:
           set -euo pipefail
           cd "$IOS_ROOT"
           rm -rf build package
+
+          mkdir -p "$GITHUB_WORKSPACE/build-diagnostics"
+          BUILD_LOG="$GITHUB_WORKSPACE/build-diagnostics/xcodebuild.log"
+          RESULT_BUNDLE="$GITHUB_WORKSPACE/build-diagnostics/CWDatacenter.xcresult"
+
+          # Xcode 16.4 occasionally terminates the parallel app + share-extension
+          # build without printing a compiler diagnostic. Use one build worker and
+          # an explicit generic iOS destination so the chosen target is stable.
           xcodebuild \
             -project CWDatacenter.xcodeproj \
             -scheme CWDatacenter \
             -configuration Release \
-            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath "$IOS_ROOT/build" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            clean build
+            clean | tee "$BUILD_LOG"
+
+          rm -rf "$RESULT_BUNDLE"
+          set +e
+          xcodebuild \
+            -project CWDatacenter.xcodeproj \
+            -scheme CWDatacenter \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$IOS_ROOT/build" \
+            -resultBundlePath "$RESULT_BUNDLE" \
+            -jobs 1 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            VALIDATE_PRODUCT=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            build 2>&1 | tee -a "$BUILD_LOG"
+          BUILD_STATUS=${PIPESTATUS[0]}
+          set -e
+
+          if [[ "$BUILD_STATUS" -ne 0 ]]; then
+            echo "::group::Last 250 lines from xcodebuild"
+            tail -n 250 "$BUILD_LOG" || true
+            echo "::endgroup::"
+            grep -nEi 'error:|fatal error|failed|crash|signal' "$BUILD_LOG" | tail -n 120 || true
+            echo "::error::Xcode build failed. Download build-diagnostics for the full log and xcresult bundle."
+            exit "$BUILD_STATUS"
+          fi
 
       - name: Validate and package unsigned IPA
         shell: bash
@@ -109,8 +146,8 @@ jobs:
           test -f "$APP_PATH/Web/app.js"
           APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")"
           APP_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")"
-          test "$APP_VERSION" = "1.6.16"
-          test "$APP_BUILD" = "10616"
+          test "$APP_VERSION" = "1.6.17"
+          test "$APP_BUILD" = "10617"
           test -d "$APP_PATH/PlugIns/CWDatacenterShare.appex"
           grep -q "cw-web-version\" content=\"$APP_VERSION" "$APP_PATH/Web/index.html"
           grep -q "CW_WEB_VERSION = '$APP_VERSION'" "$APP_PATH/Web/app.js"
@@ -132,3 +169,12 @@ jobs:
             ipa-output/CW-Datacenter-iOS-1.4.0-unsigned.ipa.sha256
           if-no-files-found: error
           retention-days: 30
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CW-Datacenter-iOS-build-diagnostics
+          path: build-diagnostics
+          if-no-files-found: ignore
+          retention-days: 14
