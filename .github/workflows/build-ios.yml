@@ -57,14 +57,12 @@ jobs:
           test -f "$APP_PATH/Web/index.html"
           test -f "$APP_PATH/Web/app.js"
           APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")"
-          APP_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")"
+          APP_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist)"
           test "$APP_VERSION" = "1.6.12"
           test "$APP_BUILD" = "10612"
           test -d "$APP_PATH/PlugIns/CWDatacenterShare.appex"
           grep -q "cw-web-version\" content=\"$APP_VERSION" "$APP_PATH/Web/index.html"
           grep -q "CW_WEB_VERSION = '$APP_VERSION'" "$APP_PATH/Web/app.js"
-          # Keep the legacy output name because the existing GitHub pipeline
-          # and download step expect this exact filename.
           IPA_BASENAME="CW-Datacenter-iOS-1.4.0-unsigned"
           rm -rf package
           mkdir -p package/Payload
