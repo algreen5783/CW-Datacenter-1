@@ -1,4 +1,4 @@
-name: Build CW Datacenter iOS 1.6.19 IPA
+name: Build CW Datacenter iOS 1.6.25 IPA
 
 on:
   workflow_dispatch:
@@ -25,7 +25,7 @@ jobs:
           set -euo pipefail
 
           SOURCE_ROOT="$GITHUB_WORKSPACE"
-          PREFERRED_ZIP="$GITHUB_WORKSPACE/CW-Datacenter-iOS-1.6.19-GitHub-IPA-Build.zip"
+          PREFERRED_ZIP="$GITHUB_WORKSPACE/CW-Datacenter-iOS-1.6.25-GitHub-IPA-Build.zip"
           if [[ -f "$PREFERRED_ZIP" ]]; then
             ZIP_PATH="$PREFERRED_ZIP"
           else
@@ -74,8 +74,8 @@ jobs:
 
           SOURCE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' CWDatacenter/Info.plist)"
           SOURCE_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' CWDatacenter/Info.plist)"
-          if [[ "$SOURCE_VERSION" != "1.6.19" || "$SOURCE_BUILD" != "10619" ]]; then
-            echo "::error::Sai phiên bản source: nhận $SOURCE_VERSION ($SOURCE_BUILD), cần 1.6.19 (10619)."
+          if [[ "$SOURCE_VERSION" != "1.6.25" || "$SOURCE_BUILD" != "10625" ]]; then
+            echo "::error::Sai phiên bản source: nhận $SOURCE_VERSION ($SOURCE_BUILD), cần 1.6.25 (10625)."
             exit 1
           fi
           grep -q "cw-web-version\" content=\"$SOURCE_VERSION" CWDatacenter/Resources/Web/index.html
@@ -146,13 +146,13 @@ jobs:
           test -f "$APP_PATH/Web/app.js"
           APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")"
           APP_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")"
-          test "$APP_VERSION" = "1.6.19"
-          test "$APP_BUILD" = "10619"
+          test "$APP_VERSION" = "1.6.25"
+          test "$APP_BUILD" = "10625"
           test -d "$APP_PATH/PlugIns/CWDatacenterShare.appex"
           grep -q "cw-web-version\" content=\"$APP_VERSION" "$APP_PATH/Web/index.html"
           grep -q "CW_WEB_VERSION = '$APP_VERSION'" "$APP_PATH/Web/app.js"
 
-          IPA_BASENAME="CW-Datacenter-iOS-1.4.0-unsigned"
+          IPA_BASENAME="CW-Datacenter-iOS-1.6.25-unsigned"
           OUTPUT_DIR="$GITHUB_WORKSPACE/ipa-output"
           rm -rf package "$OUTPUT_DIR"
           mkdir -p package/Payload "$OUTPUT_DIR"
@@ -163,10 +163,10 @@ jobs:
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CW-Datacenter-iOS-1.4.0-unsigned
+          name: CW-Datacenter-iOS-1.6.25-unsigned
           path: |
-            ipa-output/CW-Datacenter-iOS-1.4.0-unsigned.ipa
-            ipa-output/CW-Datacenter-iOS-1.4.0-unsigned.ipa.sha256
+            ipa-output/CW-Datacenter-iOS-1.6.25-unsigned.ipa
+            ipa-output/CW-Datacenter-iOS-1.6.25-unsigned.ipa.sha256
           if-no-files-found: error
           retention-days: 30
 
